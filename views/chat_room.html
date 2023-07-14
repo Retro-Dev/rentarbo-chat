@@ -1,0 +1,425 @@
+<!doctype html>
+<html>
+<head>
+    <title>Socket.IO chat</title>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+          integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
+          integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+    <link rel="stylesheet" href="/css/chat.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="/css/multi.select.css" crossorigin="anonymous">
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="create_group">
+            <!-- Button trigger modal -->
+            <button id="create_new_group" class="btn btn-primary" type="button" data-toggle="modal"
+                    data-target="#exampleModal">create new group
+            </button>
+
+            <!-- Button trigger modal -->
+            <button id="new_message" class="btn btn-primary" type="button">New Message</button>
+            <button id="logout" class="btn btn-primary" type="button">logout </button>
+        </div>
+
+    </div>
+    <div class="main">
+        <ul id="messages"></ul>
+    </div>
+    <div class="right-sidebar">
+        <ul class="room_list">
+        </ul>
+    </div>
+    <div class="send-box">
+        <div style="position: relative;">
+            <form action="">
+                <input id="m" autocomplete="off">
+                <button>Send</button>
+            </form>
+            <span id="typing">typing...</span>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Create New Group</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form action="javascript:;" class="ajax-form">
+                        <div class="col-10">
+                            <div class="form-group">
+                                <label for="user" style="width: 100%;">
+                                    Group Name
+                                    <input type="text" name="group_title" id="group_title" class="form-control">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-10">
+                            <div class="form-group">
+                                <div>Select User</div>
+                                <div class="multi" id="multi"></div>
+                            </div>
+                        </div>
+                        <div class="col-10">
+                            <div class="form-group">
+                                <div>Message</div>
+                                <textarea name="message" class="group-message-area"></textarea>
+                            </div>
+                        </div>
+                        <input type="hidden" name="group_type" value="group">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="send" class="btn btn-primary">send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="new_message_box" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="new_message_label">Create New Group</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form action="javascript:;" class="ajax-form">
+                        <div class="col-10">
+                            <div class="form-group">
+                                <label for="user" style="width: 100%;">
+                                    Group Name
+                                    <input type="text" name="title" id="title" class="form-control">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-10">
+                            <div class="form-group">
+                                <div>Select User</div>
+                            </div>
+                        </div>
+                        <div class="col-10">
+                            <div class="form-group">
+                                <div>Message</div>
+                                <textarea name="message" class="group-message-area"></textarea>
+                            </div>
+                        </div>
+                        <input type="hidden" name="type" value="group">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="send_one" class="btn btn-primary">send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+        integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+        crossorigin="anonymous"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/multi.select.js"></script>
+<script>
+    $(function () {
+        var socket = io();
+        var data_set = {};
+        data_set.user_id = localStorage.getItem("user_id");
+        data_set.username = localStorage.getItem("username");
+        data_set.token = localStorage.getItem("token");
+        var param = {};
+        var user_list = {};
+        var selected_user = [];
+
+        loadRooms(data_set);
+
+        if(localStorage.getItem("is_login") == "true"){
+            socket.emit("_loginUser",{"user_id" : data_set.user_id})
+            localStorage.setItem("is_login",false)
+        }
+
+        $(document).on("click", ".with_chat", function () {
+            param.chat_room_id = $(this).attr("id");
+            if(typeof param.chat_room_id == "undefined"){
+                let current_active_chat = localStorage.getItem("chat_room_id")
+                $('#messages').removeClass("chat_" + current_active_chat);
+                $('#messages').addClass("chat_" + param.chat_room_id);
+                socket.emit("disconnect", {"chat_room_id": current_active_chat})
+                localStorage.setItem("chat_room_id", param.chat_room_id)
+                loadChat(param)
+            }
+
+        });
+
+
+        socket.on('chat_message', function (msg) {
+            $('#messages').append($('<li>').text(msg));
+        });
+
+        $("#m").on("keydown", function () {
+            data_set.chat_room_id = localStorage.getItem("chat_room_id")
+            socket.emit("key_down", data_set);
+        })
+
+        socket.on('msg_typing', function (params) {
+            $("#typing").show();
+            setTimeout(function () {
+                $("#typing").hide();
+            }, 1000);
+        });
+
+
+        socket.on(param.chat_room_id).on('received', function (params) {
+            let chat_open = $(".chat_" + params.chat_room_id)
+            if (chat_open.length > 0) {
+                $('#messages').append($('<li>').text(params.message));
+                scrollDown({})
+            } else {
+                $("#msg_count_" + params.chat_room_id).removeClass("hide");
+                let count = $("#msg_count_" + params.chat_room_id).text();
+                $("#msg_count_" + params.chat_room_id).text((parseInt(count) + 1))
+            }
+        });
+
+        socket.on("left_room", function (param) {
+        })
+
+        function loadRooms(data) {
+            $.ajax({
+                url: `${location.origin}/api/room?user_id=` + data.user_id,
+                method: "GET",
+                cache: false,
+                sync: false,
+                success: function (response) {
+                    $('.room_list').html("");
+                    if (response.error_code == 200) {
+                        response.data.map(function (value, index) {
+                            socket.emit("join_room", {
+                                "chat_room_id": value.id,
+                                "username": data_set.username,
+                                "room_name": value.title
+                            });
+
+                            $('.room_list').append("<li class='with_chat'  id='" + value.id + "'><a href='javascript:;'>" + capitalize(value.title) + "<span class='hide msg_counter' id='msg_count_" + value.id + "'>0</span></a></li>")
+                        })
+                    }
+                }
+            });
+        }
+
+        function loadChat(param) {
+            $.ajax({
+                url: `${location.origin}/api/chat_message?chat_room_id=` + param.chat_room_id,
+                method: "GET",
+                cache: false,
+                sync: false,
+                success: function (response) {
+                    if (response.error_code == 200) {
+                        $('#messages').html("");
+                        response.data.map(function (value, index) {
+                            $('#messages').append($('<li>').text(value.message));
+                        })
+
+                        $(".msg_counter").text(0).addClass("hide");
+                        scrollDown({go_down: true})
+                    }
+                }
+            });
+        }
+
+        function addChatMessage(param) {
+            $.ajax({
+                url: `${location.origin}/api/chat_message/create`,
+                method: "POST",
+                cache: false,
+                data: param,
+                success: function (response) {
+                    if (response.error_code == 200) {
+                        socket.emit('chat_message', response.data);
+                        $('#m').val('');
+                        $('#messages').append($('<li>').text(response.data.message));
+                    }
+                }
+            });
+        }
+
+        function getUserList(param) {
+
+            $.ajax({
+                url: `${location.origin}/api/user`,
+                method: "Get",
+                cache: false,
+                success: function (response) {
+                    if (response.error_code == 200) {
+                        response.data.map(function (value, index) {
+                            if (value.id != data_set.user_id) {
+                                user_list[value.id] = value.username
+                            }
+                        })
+                        userListGenerate(user_list)
+                    }
+                }
+            });
+        }
+
+        function scrollDown(param) {
+            let scroll = $('.main').prop("scrollHeight");
+            var scrollTop = $('.main').scrollTop();
+            if (scrollTop > (scroll - 400)) {
+                $('.main').animate({scrollTop: $('.main').prop("scrollHeight")}, 500);
+            }
+            if (param.go_down == true) {
+                $('.main').animate({scrollTop: $('.main').prop("scrollHeight")}, 500);
+            }
+        }
+
+        $('form').submit(function (e) {
+            e.preventDefault(); // prevents page reloading
+            let param = {};
+            param.message = $('#m').val();
+            param.chat_room_id = localStorage.getItem("chat_room_id");
+            param.user_id = localStorage.getItem("user_id");
+            addChatMessage(param)
+        });
+
+        $("#create_new_group").click(function () {
+            getUserList();
+        })
+
+        /**
+         * Capitalizes first letters of words in string.
+         * @param {string} str String to be modified
+         * @param {boolean=false} lower Whether all other letters should be lowercased
+         * @return {string}
+         * @usage
+         *   capitalize('fix this string');     // -> 'Fix This String'
+         *   capitalize('javaSCrIPT');          // -> 'JavaSCrIPT'
+         *   capitalize('javaSCrIPT', true);    // -> 'Javascript'
+         */
+        const capitalize = (str, lower = false) =>
+            (lower ? str.toLowerCase() : str).replace(/(?:^|\s|["'([{])+\S/g, match => match.toUpperCase());
+
+
+        function userListGenerate(data) {
+            $('.multi').multi_select({
+                selectColor: 'purple',
+                selectSize: 'small',
+                selectText: 'Select User',
+                name: 'user',
+                duration: 300,
+                easing: 'slide',
+                listMaxHeight: 300,
+                selectedCount: 2,
+                sortByText: true,
+                fillButton: true,
+                data: data,
+                onSelect: function (values) {
+                    selected_user = values
+                }
+            });
+
+
+            $('#get_values').on('click', function (event) {
+                ($('#multi').multi_select('getSelectedValues'));
+                $('.data-display').remove();
+                var json = {items: $('#multi').multi_select('getSelectedValues')};
+                if (json.items.length) {
+                    var ul = $('<ul>', {'class': 'data-display'}).appendTo('body');
+                    $(json.items).each(function (index, item) {
+                        ul.append(
+                            '<li style="display: block;">' + item + '</li>'
+                        );
+                    });
+                }
+            });
+
+            $('#clear_values').on('click', function (event) {
+                $('#multi').multi_select('clearValues');
+                $('.data-display').slideUp(300, function () {
+                    $(this).remove()
+                })
+            });
+        }
+
+        $("#send").click(function () {
+            var data = $('.ajax-form').serializeArray();
+            data.push({name: "selected_user", value: selected_user});
+            data.push({name: "user_id", value: localStorage.getItem("user_id")});
+
+            $.ajax({
+                url: `${location.origin}/api/room/create`,
+                method: "POST",
+                cache: false,
+                data: data,
+                success: function (response) {
+
+                    if (response.error_code == 200) {
+                        $('#group_title').val(""); // clear message area
+                        $('.group-message-area').val(""); // clear title
+                        $('#multi').multi_select('clearValues'); // unselected all use
+
+                        if(response.data.length > 0){
+                            response.data.map(function (value, index) {
+                                loadRooms(data_set);
+                                $(".close").trigger("click");
+                                socket.emit("create_chat", value);
+                            })
+                        }
+                    }
+                }
+            });
+        })
+
+        $('#logout').click(function () {
+            $.ajax({
+                url: `${location.origin}/api/room?user_id=` + data_set.user_id,
+                method: "GET",
+                cache: false,
+                sync: false,
+                success: function (response) {
+                    if (response.error_code == 200) {
+                        response.data.map(function (value, index) {
+                            socket.emit("logout_user", value)
+                        })
+                    }
+                    location.href = `${location.origin}`;
+                }
+            });
+        })
+
+        socket.on("join_user",(param) =>{
+
+        })
+
+
+        socket.on("created",(param) =>{
+            loadRooms(data_set);
+        })
+
+        socket.on("logout",(param) =>{
+            console.log(param.title +" user left.",)
+        })
+    });
+
+
+</script>
+</body>
+</html>
+
